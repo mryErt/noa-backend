@@ -4,7 +4,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const User = require('./models/User');
+const User = require('./models/user');
 
 const app = express();
 app.use(express.json());
@@ -50,5 +50,5 @@ app.post('/api/update-data', async (req, res) => {
     }
 });
 
-const PORT = 5000;
-app.listen(PORT, () => console.log(`Sunucu ${PORT} portunda çalışıyor.`));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server ${PORT} portunda çalışıyor`));
