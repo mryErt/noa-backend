@@ -8,7 +8,11 @@ const User = require('./models/user');
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: "*", // Tüm dünyadan (yani Vercel'den) gelen isteklere izin ver
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
 
 mongoose.connect('mongodb+srv://miraysser17_db_user:Mff5bnky17@cluster0.pkehgea.mongodb.net/noa_muhasebe?retryWrites=true&w=majority')
     .then(() => console.log("MongoDB Bağlantısı Başarılı!"))
