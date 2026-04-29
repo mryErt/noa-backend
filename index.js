@@ -10,7 +10,7 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-mongoose.connect('mongodb://127.0.0.1:27017/noa_muhasebe')
+mongoose.connect('mongodb+srv://miraysser17_db_user:Mff5bnky17@cluster0.pkehgea.mongodb.net/noa_muhasebe?retryWrites=true&w=majority')
     .then(() => console.log("MongoDB Bağlantısı Başarılı!"))
     .catch(err => console.log("Bağlantı Hatası:", err));
 
