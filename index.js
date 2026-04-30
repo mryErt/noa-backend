@@ -70,3 +70,26 @@ app.post('/api/update-data', async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server ${PORT} portunda çalışıyor`));
+
+// --- ŞİFRE DEĞİŞTİRME ---
+app.post('/api/change-password', async (req, res) => {
+    try {
+        const { username, oldPassword, newPassword } = req.body;
+        const user = await User.findOne({ username });
+        
+        if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+
+        // Eski şifre doğru mu kontrol et
+        const isMatch = await bcrypt.compare(oldPassword, user.password);
+        if (!isMatch) return res.status(400).json({ error: "Mevcut şifreniz hatalı" });
+
+        // Yeni şifreyi hashle ve kaydet
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        await user.save();
+
+        res.json({ message: "Şifre başarıyla güncellendi" });
+    } catch (err) {
+        res.status(500).json({ error: "Şifre değiştirilirken bir hata oluştu" });
+    }
+});
