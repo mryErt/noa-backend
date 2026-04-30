@@ -18,7 +18,7 @@ app.use(cors({
 app.use(express.json());
 
 // --- MONGODB BAĞLANTISI ---
-mongoose.connect('mongodb+srv://miraysser17_db_user:Mff5bnky17@cluster0.pkehgea.mongodb.net/noa_muhasebe?retryWrites=true&w=majority')
+mongoose.connect('mongodb+srv://miraysser17_db_user:Mff5bnky17@cluster0.pkehgea.mongodb.net/noa_muhasebe')
     .then(() => console.log("MongoDB Bağlantısı Başarılı!"))
     .catch(err => console.log("Bağlantı Hatası:", err));
 
