@@ -1,16 +1,16 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const bcrypt = require('bcryptjs'); // bcryptjs kullandığından emin ol
+const bcrypt = require('bcryptjs'); 
 const jwt = require('jsonwebtoken');
 
 const User = require('./models/user');
 
 const app = express();
 
-// --- CORS AYARI (GÜNCELLENDİ) ---
+// --- CORS AYARI ---
 app.use(cors({
-  origin: true, // Gelen isteğin kökenine (Vercel) otomatik izin verir
+  origin: true, 
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true
 }));
@@ -22,12 +22,13 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("MongoDB Bağlantısı Başarılı!"))
     .catch(err => console.log("Bağlantı Hatası:", err));
 
-// --- KAYIT OLMA ---
+// --- KAYIT OLMA (firmalar -> projeler olarak güncellendi) ---
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password } = req.body;
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ username, password: hashedPassword, firmalar: [] });
+        // Yeni kullanıcı artık boş bir projeler listesiyle oluşur
+        const newUser = new User({ username, password: hashedPassword, projeler: [] });
         await newUser.save();
         res.status(201).json({ message: "Kullanıcı oluşturuldu" });
     } catch (err) {
@@ -36,7 +37,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// --- GİRİŞ YAPMA ---
+// --- GİRİŞ YAPMA (firmalar -> projeler olarak güncellendi) ---
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -46,18 +47,20 @@ app.post('/api/login', async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ error: "Şifre hatalı" });
 
-        res.json({ user: { username: user.username, firmalar: user.firmalar } });
+        // Giriş yapınca projeleri frontend'e gönderiyoruz
+        res.json({ user: { username: user.username, projeler: user.projeler || [] } });
     } catch (err) {
         console.error("Giriş Hatası:", err);
         res.status(500).json({ error: "Giriş yapılırken bir hata oluştu" });
     }
 });
 
-// --- VERİLERİ KALICI KAYDETME ---
+// --- VERİLERİ KALICI KAYDETME (Kritik Değişiklik) ---
 app.post('/api/update-data', async (req, res) => {
-    const { username, firmalar } = req.body;
+    const { username, projeler } = req.body; // Artık 'projeler' alıyoruz
     try {
-        await User.findOneAndUpdate({ username }, { firmalar });
+        // Kullanıcının projeler alanını güncelliyoruz
+        await User.findOneAndUpdate({ username }, { projeler });
         res.json({ message: "Kaydedildi" });
     } catch (err) {
         console.error("Güncelleme Hatası:", err);
@@ -65,6 +68,5 @@ app.post('/api/update-data', async (req, res) => {
     }
 });
 
-// --- PORT AYARI (RENDER İÇİN KRİTİK) ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server ${PORT} portunda çalışıyor`));
