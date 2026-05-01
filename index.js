@@ -13,13 +13,12 @@ const app = express();
 let dogrulamaKodlari = {}; 
 
 // --- GMAIL TRANSPORTER AYARI ---
-// Not: Buradaki şifre kısmına normal Gmail şifreni değil, 
-// Google hesabından alacağın 16 haneli "Uygulama Şifresi"ni yazmalısın.
+// Senin Gmail hesabın "postacı" görevini görüyor.
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: 'miray.ert15@gmail.com', 
-    pass: 'zonf sger sike jyxs' // Buraya 16 haneli uygulama şifresi gelecek
+    pass: 'zonf sger sike jyxs' // 16 haneli uygulama şifren
   }
 });
 
@@ -101,10 +100,10 @@ app.post('/api/change-password', async (req, res) => {
     }
 });
 
-// --- E-POSTA KODU GÖNDERME (GMAIL ENTEGRASYONU) ---
+// --- E-POSTA KODU GÖNDERME (DİNAMİK ENTEGRASYON) ---
 app.post('/api/send-otp', async (req, res) => {
     try {
-        const { username, email } = req.body; // Artık email parametresini bekliyoruz
+        const { username, email } = req.body; 
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
 
@@ -114,8 +113,8 @@ app.post('/api/send-otp', async (req, res) => {
         
         // E-posta İçeriği
         const mailOptions = {
-            from: 'senin-email-adresin@gmail.com',
-            to: email,
+            from: 'miray.ert15@gmail.com', // Postacı adresi senin adresin olmalı
+            to: email, // KRİTİK: Ekrana yazılan herhangi bir e-posta adresine gider
             subject: 'NOA YAZILIM - Doğrulama Kodu',
             text: `Merhaba ${username},\n\nŞifrenizi sıfırlamak için doğrulama kodunuz: ${otp}\n\nEğer bu isteği siz yapmadıysanız lütfen bu e-postayı dikkate almayın.`
         };
@@ -128,7 +127,7 @@ app.post('/api/send-otp', async (req, res) => {
         res.json({ message: "Doğrulama kodu e-posta adresinize gönderildi!" });
     } catch (err) {
         console.error("E-posta Hatası:", err);
-        res.status(500).json({ error: "Kod gönderilemedi. Lütfen e-posta ayarlarınızı kontrol edin." });
+        res.status(500).json({ error: "Kod gönderilemedi. Lütfen alıcı e-posta adresini kontrol edin." });
     }
 });
 
