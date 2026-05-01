@@ -8,6 +8,9 @@ const User = require('./models/user');
 
 const app = express();
 
+// --- KOD SAKLAMA ALANI (RAM ÜZERİNDE GEÇİCİ) ---
+let dogrulamaKodlari = {}; 
+
 // --- CORS AYARI ---
 app.use(cors({
   origin: true, 
@@ -22,12 +25,11 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("MongoDB Bağlantısı Başarılı!"))
     .catch(err => console.log("Bağlantı Hatası:", err));
 
-// --- KAYIT OLMA (firmalar -> projeler olarak güncellendi) ---
+// --- KAYIT OLMA ---
 app.post('/api/register', async (req, res) => {
     try {
         const { username, password } = req.body;
         const hashedPassword = await bcrypt.hash(password, 10);
-        // Yeni kullanıcı artık boş bir projeler listesiyle oluşur
         const newUser = new User({ username, password: hashedPassword, projeler: [] });
         await newUser.save();
         res.status(201).json({ message: "Kullanıcı oluşturuldu" });
@@ -37,7 +39,7 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
-// --- GİRİŞ YAPMA (firmalar -> projeler olarak güncellendi) ---
+// --- GİRİŞ YAPMA ---
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -47,7 +49,6 @@ app.post('/api/login', async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ error: "Şifre hatalı" });
 
-        // Giriş yapınca projeleri frontend'e gönderiyoruz
         res.json({ user: { username: user.username, projeler: user.projeler || [] } });
     } catch (err) {
         console.error("Giriş Hatası:", err);
@@ -55,11 +56,10 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// --- VERİLERİ KALICI KAYDETME (Kritik Değişiklik) ---
+// --- VERİLERİ KALICI KAYDETME ---
 app.post('/api/update-data', async (req, res) => {
-    const { username, projeler } = req.body; // Artık 'projeler' alıyoruz
+    const { username, projeler } = req.body;
     try {
-        // Kullanıcının projeler alanını güncelliyoruz
         await User.findOneAndUpdate({ username }, { projeler });
         res.json({ message: "Kaydedildi" });
     } catch (err) {
@@ -68,10 +68,7 @@ app.post('/api/update-data', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server ${PORT} portunda çalışıyor`));
-
-// --- ŞİFRE DEĞİŞTİRME ---
+// --- ŞİFRE DEĞİŞTİRME (ESKİ ŞİFRE İLE) ---
 app.post('/api/change-password', async (req, res) => {
     try {
         const { username, oldPassword, newPassword } = req.body;
@@ -79,11 +76,9 @@ app.post('/api/change-password', async (req, res) => {
         
         if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
 
-        // Eski şifre doğru mu kontrol et
         const isMatch = await bcrypt.compare(oldPassword, user.password);
         if (!isMatch) return res.status(400).json({ error: "Mevcut şifreniz hatalı" });
 
-        // Yeni şifreyi hashle ve kaydet
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         user.password = hashedPassword;
         await user.save();
@@ -93,3 +88,51 @@ app.post('/api/change-password', async (req, res) => {
         res.status(500).json({ error: "Şifre değiştirilirken bir hata oluştu" });
     }
 });
+
+// --- SMS KODU GÖNDERME (SİMÜLASYON) ---
+app.post('/api/send-otp', async (req, res) => {
+    try {
+        const { username, phone } = req.body;
+        const user = await User.findOne({ username });
+        if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+
+        // 6 haneli rastgele kod üret
+        const otp = Math.floor(100000 + Math.random() * 900000); 
+        dogrulamaKodlari[username] = otp;
+        
+        // Bu kısım Render logs kısmında görünecek
+        console.log(`*****************************************`);
+        console.log(`SMS SIMULASYONU: ${username} kullanıcısı için`);
+        console.log(`Telefon: ${phone}`);
+        console.log(`DOĞRULAMA KODU: ${otp}`);
+        console.log(`*****************************************`);
+
+        res.json({ message: "Doğrulama kodu gönderildi. Lütfen terminali/logları kontrol edin." });
+    } catch (err) {
+        res.status(500).json({ error: "Kod gönderilemedi" });
+    }
+});
+
+// --- SMS KODU İLE ŞİFRE SIFIRLAMA ---
+app.post('/api/verify-otp-and-change', async (req, res) => {
+    try {
+        const { username, otp, newPassword } = req.body;
+        
+        if (!dogrulamaKodlari[username] || dogrulamaKodlari[username].toString() !== otp.toString()) {
+            return res.status(400).json({ error: "Doğrulama kodu hatalı veya süresi dolmuş!" });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await User.findOneAndUpdate({ username }, { password: hashedPassword });
+        
+        // Kod kullanıldığı için bellekten temizle
+        delete dogrulamaKodlari[username];
+        
+        res.json({ message: "Şifre başarıyla değiştirildi" });
+    } catch (err) {
+        res.status(500).json({ error: "Şifre güncellenirken bir hata oluştu" });
+    }
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server ${PORT} portunda çalışıyor`));
