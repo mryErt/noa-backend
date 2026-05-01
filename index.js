@@ -12,13 +12,17 @@ const app = express();
 // --- KOD SAKLAMA ALANI (RAM ÜZERİNDE GEÇİCİ) ---
 let dogrulamaKodlari = {}; 
 
-// --- GMAIL TRANSPORTER AYARI ---
-// Senin Gmail hesabın "postacı" görevini görüyor.
+// --- GMAIL TRANSPORTER AYARI (RENDER İÇİN GÜNCELLENDİ) ---
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // 587 portu STARTTLS kullandığı için false olmalı
   auth: {
     user: 'miray.ert15@gmail.com', 
     pass: 'zonf sger sike jyxs' // 16 haneli uygulama şifren
+  },
+  tls: {
+    rejectUnauthorized: false // Render sunucusunda sertifika hatalarını aşmak için kritik ayar
   }
 });
 
@@ -113,8 +117,8 @@ app.post('/api/send-otp', async (req, res) => {
         
         // E-posta İçeriği
         const mailOptions = {
-            from: 'miray.ert15@gmail.com', // Postacı adresi senin adresin olmalı
-            to: email, // KRİTİK: Ekrana yazılan herhangi bir e-posta adresine gider
+            from: 'miray.ert15@gmail.com', 
+            to: email, 
             subject: 'NOA YAZILIM - Doğrulama Kodu',
             text: `Merhaba ${username},\n\nŞifrenizi sıfırlamak için doğrulama kodunuz: ${otp}\n\nEğer bu isteği siz yapmadıysanız lütfen bu e-postayı dikkate almayın.`
         };
