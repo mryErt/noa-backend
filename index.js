@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs'); 
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer'); // E-posta için gerekli paket
 
 const User = require('./models/user');
 
@@ -10,6 +11,17 @@ const app = express();
 
 // --- KOD SAKLAMA ALANI (RAM ÜZERİNDE GEÇİCİ) ---
 let dogrulamaKodlari = {}; 
+
+// --- GMAIL TRANSPORTER AYARI ---
+// Not: Buradaki şifre kısmına normal Gmail şifreni değil, 
+// Google hesabından alacağın 16 haneli "Uygulama Şifresi"ni yazmalısın.
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: 'miray.ert15@gmail.com', 
+    pass: 'zonf sger sike jyxs' // Buraya 16 haneli uygulama şifresi gelecek
+  }
+});
 
 // --- CORS AYARI ---
 app.use(cors({
@@ -89,10 +101,10 @@ app.post('/api/change-password', async (req, res) => {
     }
 });
 
-// --- SMS KODU GÖNDERME (SİMÜLASYON) ---
+// --- E-POSTA KODU GÖNDERME (GMAIL ENTEGRASYONU) ---
 app.post('/api/send-otp', async (req, res) => {
     try {
-        const { username, phone } = req.body;
+        const { username, email } = req.body; // Artık email parametresini bekliyoruz
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
 
@@ -100,20 +112,27 @@ app.post('/api/send-otp', async (req, res) => {
         const otp = Math.floor(100000 + Math.random() * 900000); 
         dogrulamaKodlari[username] = otp;
         
-        // Bu kısım Render logs kısmında görünecek
-        console.log(`*****************************************`);
-        console.log(`SMS SIMULASYONU: ${username} kullanıcısı için`);
-        console.log(`Telefon: ${phone}`);
-        console.log(`DOĞRULAMA KODU: ${otp}`);
-        console.log(`*****************************************`);
+        // E-posta İçeriği
+        const mailOptions = {
+            from: 'senin-email-adresin@gmail.com',
+            to: email,
+            subject: 'NOA YAZILIM - Doğrulama Kodu',
+            text: `Merhaba ${username},\n\nŞifrenizi sıfırlamak için doğrulama kodunuz: ${otp}\n\nEğer bu isteği siz yapmadıysanız lütfen bu e-postayı dikkate almayın.`
+        };
 
-        res.json({ message: "Doğrulama kodu gönderildi. Lütfen terminali/logları kontrol edin." });
+        // E-postayı Gönder
+        await transporter.sendMail(mailOptions);
+
+        console.log(`E-POSTA GÖNDERİLDİ: ${email} adresine giden kod: ${otp}`);
+
+        res.json({ message: "Doğrulama kodu e-posta adresinize gönderildi!" });
     } catch (err) {
-        res.status(500).json({ error: "Kod gönderilemedi" });
+        console.error("E-posta Hatası:", err);
+        res.status(500).json({ error: "Kod gönderilemedi. Lütfen e-posta ayarlarınızı kontrol edin." });
     }
 });
 
-// --- SMS KODU İLE ŞİFRE SIFIRLAMA ---
+// --- KOD İLE ŞİFRE SIFIRLAMA ---
 app.post('/api/verify-otp-and-change', async (req, res) => {
     try {
         const { username, otp, newPassword } = req.body;
