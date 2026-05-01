@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs'); 
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer'); // Bu satırı ekliyoruz
+const nodemailer = require('nodemailer');
 
 const User = require('./models/user');
 
@@ -12,18 +12,32 @@ const app = express();
 // --- KOD SAKLAMA ALANI (RAM ÜZERİNDE GEÇİCİ) ---
 let dogrulamaKodlari = {}; 
 
-// --- GMAIL TRANSPORTER AYARI ---
-// Bu kısım postacı görevini görür.
+// --- GMAIL TRANSPORTER AYARI (SÜPER AYARLANMIŞ VERSİYON) ---
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, 
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // 465 portu için true olmalı
   auth: {
-    user: 'miray.ert15.com', // Kendi Gmail adresin
-    pass: 'zonf sger sike jyxs' // Google'dan aldığın kod
+    user: 'miraysser17@gmail.com', // Gönderici mail adresin
+    pass: 'stlp kghp wath aldw'    // Google'dan aldığın 16 haneli kod
   },
   tls: {
-    rejectUnauthorized: false // Render üzerinde hata almamak için kritik
+    rejectUnauthorized: false, // Sertifika hatalarını ve Render engellerini aşar
+    servername: "smtp.gmail.com"
+  },
+  debug: true, // Hata olursa loglarda detaylı görebilmemiz için
+  logger: true, // Adım adım gönderim sürecini izlemek için
+  connectionTimeout: 10000, // 10 saniye bağlantı sınırı
+  greetingTimeout: 5000,
+  socketTimeout: 15000
+});
+
+// Bağlantının hazır olup olmadığını loglarda kontrol etmemizi sağlar
+transporter.verify((error, success) => {
+  if (error) {
+    console.log("Posta sunucusu hatası (Bağlantı kurulamadı):", error);
+  } else {
+    console.log("Posta sunucusu e-posta göndermeye hazır!");
   }
 });
 
@@ -105,7 +119,7 @@ app.post('/api/change-password', async (req, res) => {
     }
 });
 
-// --- E-POSTA KODU GÖNDERME (GMAIL ENTEGRASYONU) ---
+// --- E-POSTA KODU GÖNDERME ---
 app.post('/api/send-otp', async (req, res) => {
     try {
         const { username, email } = req.body; 
@@ -116,17 +130,18 @@ app.post('/api/send-otp', async (req, res) => {
         dogrulamaKodlari[username] = otp;
         
         const mailOptions = {
-            from: 'miraysser17@gmail.com',
-            to: email, // Dinamik olarak ekrandaki adrese gider
-            subject: 'NOA YAZILIM - Doğrulama Kodu',
-            text: `Merhaba ${username},\n\nŞifrenizi sıfırlamak için doğrulama kodunuz: ${otp}`
+            from: '"NOA YAZILIM" <miraysser17@gmail.com>',
+            to: email, 
+            subject: 'Güvenlik Kodu: Şifre Sıfırlama',
+            text: `Merhaba ${username},\n\nSisteme giriş yapmak için kullanacağınız doğrulama kodunuz: ${otp}\n\nBu kod tek kullanımlıktır.`
         };
 
         await transporter.sendMail(mailOptions);
+        console.log(`${email} adresine kod başarıyla gönderildi.`);
         res.json({ message: "Doğrulama kodu e-posta adresinize gönderildi!" });
     } catch (err) {
-        console.error("E-posta Hatası:", err);
-        res.status(500).json({ error: "Kod gönderilemedi. Gmail ayarlarını kontrol edin." });
+        console.error("E-posta Hatası Detayı:", err);
+        res.status(500).json({ error: "Kod gönderilemedi. Gmail ayarlarını veya uygulama şifresini kontrol edin." });
     }
 });
 
