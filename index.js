@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs'); 
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer'); // E-posta için gerekli paket
+const nodemailer = require('nodemailer'); // Bu satırı ekliyoruz
 
 const User = require('./models/user');
 
@@ -12,17 +12,18 @@ const app = express();
 // --- KOD SAKLAMA ALANI (RAM ÜZERİNDE GEÇİCİ) ---
 let dogrulamaKodlari = {}; 
 
-// --- GMAIL TRANSPORTER AYARI (RENDER İÇİN GÜNCELLENDİ) ---
+// --- GMAIL TRANSPORTER AYARI ---
+// Bu kısım postacı görevini görür.
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
-  secure: false, // 587 portu STARTTLS kullandığı için false olmalı
+  secure: false, 
   auth: {
-    user: 'miray.ert15@gmail.com', 
-    pass: 'zonf sger sike jyxs' // 16 haneli uygulama şifren
+    user: 'miray.ert15.com', // Kendi Gmail adresin
+    pass: 'zonf sger sike jyxs' // Google'dan aldığın kod
   },
   tls: {
-    rejectUnauthorized: false // Render sunucusunda sertifika hatalarını aşmak için kritik ayar
+    rejectUnauthorized: false // Render üzerinde hata almamak için kritik
   }
 });
 
@@ -104,34 +105,28 @@ app.post('/api/change-password', async (req, res) => {
     }
 });
 
-// --- E-POSTA KODU GÖNDERME (DİNAMİK ENTEGRASYON) ---
+// --- E-POSTA KODU GÖNDERME (GMAIL ENTEGRASYONU) ---
 app.post('/api/send-otp', async (req, res) => {
     try {
         const { username, email } = req.body; 
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
 
-        // 6 haneli rastgele kod üret
         const otp = Math.floor(100000 + Math.random() * 900000); 
         dogrulamaKodlari[username] = otp;
         
-        // E-posta İçeriği
         const mailOptions = {
-            from: 'miray.ert15@gmail.com', 
-            to: email, 
+            from: 'miraysser17@gmail.com',
+            to: email, // Dinamik olarak ekrandaki adrese gider
             subject: 'NOA YAZILIM - Doğrulama Kodu',
-            text: `Merhaba ${username},\n\nŞifrenizi sıfırlamak için doğrulama kodunuz: ${otp}\n\nEğer bu isteği siz yapmadıysanız lütfen bu e-postayı dikkate almayın.`
+            text: `Merhaba ${username},\n\nŞifrenizi sıfırlamak için doğrulama kodunuz: ${otp}`
         };
 
-        // E-postayı Gönder
         await transporter.sendMail(mailOptions);
-
-        console.log(`E-POSTA GÖNDERİLDİ: ${email} adresine giden kod: ${otp}`);
-
         res.json({ message: "Doğrulama kodu e-posta adresinize gönderildi!" });
     } catch (err) {
         console.error("E-posta Hatası:", err);
-        res.status(500).json({ error: "Kod gönderilemedi. Lütfen alıcı e-posta adresini kontrol edin." });
+        res.status(500).json({ error: "Kod gönderilemedi. Gmail ayarlarını kontrol edin." });
     }
 });
 
@@ -141,13 +136,11 @@ app.post('/api/verify-otp-and-change', async (req, res) => {
         const { username, otp, newPassword } = req.body;
         
         if (!dogrulamaKodlari[username] || dogrulamaKodlari[username].toString() !== otp.toString()) {
-            return res.status(400).json({ error: "Doğrulama kodu hatalı veya süresi dolmuş!" });
+            return res.status(400).json({ error: "Doğrulama kodu hatalı!" });
         }
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         await User.findOneAndUpdate({ username }, { password: hashedPassword });
-        
-        // Kod kullanıldığı için bellekten temizle
         delete dogrulamaKodlari[username];
         
         res.json({ message: "Şifre başarıyla değiştirildi" });
