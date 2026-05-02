@@ -16,8 +16,8 @@ let dogrulamaKodlari = {};
 const transporter = nodemailer.createTransport({
   // smtp.gmail.com yerine doğrudan Google IPv4 adresi kullanıyoruz
   host: '74.125.195.108', 
-  port: 465,
-  secure: true,
+  port: 587,
+  secure: false,
   auth: {
     // Çevre değişkenlerinden çekiyoruz
     user: process.env.EMAIL_USER,
