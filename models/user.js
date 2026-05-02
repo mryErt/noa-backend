@@ -6,10 +6,18 @@ const UserSchema = new mongoose.Schema({
         required: true, 
         unique: true 
     },
+
+    email: {
+        type: String,
+        required: true,
+        unique: true
+    },
+
     password: { 
         type: String, 
         required: true 
     },
+
     // Artık 'firmalar' yerine 'projeler' listesi tutuyoruz.
     // Her projenin içinde kendi firma listesi saklanacak.
     projeler: { 

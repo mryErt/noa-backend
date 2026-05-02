@@ -58,11 +58,21 @@ mongoose.connect(process.env.MONGO_URI)
 // --- KAYIT OLMA ---
 app.post('/api/register', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { username, password, email } = req.body;
+
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ username, password: hashedPassword, projeler: [] });
+
+        const newUser = new User({ 
+            username,
+            email,
+            password: hashedPassword,
+            projeler: []
+        });
+
         await newUser.save();
+
         res.status(201).json({ message: "Kullanıcı oluşturuldu" });
+
     } catch (err) {
         console.error("Kayıt Hatası:", err);
         res.status(500).json({ error: "Kullanıcı zaten var veya sunucu hatası!" });
@@ -74,12 +84,21 @@ app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
+
         if (!user) return res.status(400).json({ error: "Kullanıcı bulunamadı" });
 
         const isMatch = await bcrypt.compare(password, user.password);
+
         if (!isMatch) return res.status(400).json({ error: "Şifre hatalı" });
 
-        res.json({ user: { username: user.username, projeler: user.projeler || [] } });
+        res.json({ 
+            user: { 
+                username: user.username, 
+                email: user.email,
+                projeler: user.projeler || [] 
+            } 
+        });
+
     } catch (err) {
         console.error("Giriş Hatası:", err);
         res.status(500).json({ error: "Giriş yapılırken bir hata oluştu" });
@@ -89,9 +108,11 @@ app.post('/api/login', async (req, res) => {
 // --- VERİLERİ KALICI KAYDETME ---
 app.post('/api/update-data', async (req, res) => {
     const { username, projeler } = req.body;
+
     try {
         await User.findOneAndUpdate({ username }, { projeler });
         res.json({ message: "Kaydedildi" });
+
     } catch (err) {
         console.error("Güncelleme Hatası:", err);
         res.status(500).json({ error: "Kayıt hatası" });
@@ -107,13 +128,16 @@ app.post('/api/change-password', async (req, res) => {
         if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
 
         const isMatch = await bcrypt.compare(oldPassword, user.password);
+
         if (!isMatch) return res.status(400).json({ error: "Mevcut şifreniz hatalı" });
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         user.password = hashedPassword;
+
         await user.save();
 
         res.json({ message: "Şifre başarıyla güncellendi" });
+
     } catch (err) {
         res.status(500).json({ error: "Şifre değiştirilirken bir hata oluştu" });
     }
@@ -122,26 +146,41 @@ app.post('/api/change-password', async (req, res) => {
 // --- E-POSTA KODU GÖNDERME ---
 app.post('/api/send-otp', async (req, res) => {
     try {
-        const { username, email } = req.body; 
-        const user = await User.findOne({ username });
-        if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+        const { username, email } = req.body;
 
-        const otp = Math.floor(100000 + Math.random() * 900000); 
+        // Kullanıcı adı + email eşleşmesi kontrolü
+        const user = await User.findOne({ username, email });
+
+        if (!user) {
+            return res.status(404).json({ 
+                error: "Kullanıcı adı veya e-posta yanlış" 
+            });
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000);
+
         dogrulamaKodlari[username] = otp;
-        
+
         const mailOptions = {
             from: '"NOA YAZILIM" <miraysser17@gmail.com>',
-            to: email, 
+            to: email,
             subject: 'Güvenlik Kodu: Şifre Sıfırlama',
             text: `Merhaba ${username},\n\nSisteme giriş yapmak için kullanacağınız doğrulama kodunuz: ${otp}\n\nBu kod tek kullanımlıktır.`
         };
 
         await transporter.sendMail(mailOptions);
+
         console.log(`${email} adresine kod başarıyla gönderildi.`);
-        res.json({ message: "Doğrulama kodu e-posta adresinize gönderildi!" });
+
+        res.json({ 
+            message: "Doğrulama kodu e-posta adresinize gönderildi!" 
+        });
+
     } catch (err) {
         console.error("E-posta Hatası Detayı:", err);
-        res.status(500).json({ error: "Kod gönderilemedi. Gmail ayarlarını veya uygulama şifresini kontrol edin." });
+        res.status(500).json({ 
+            error: "Kod gönderilemedi. Gmail ayarlarını veya uygulama şifresini kontrol edin." 
+        });
     }
 });
 
@@ -149,20 +188,38 @@ app.post('/api/send-otp', async (req, res) => {
 app.post('/api/verify-otp-and-change', async (req, res) => {
     try {
         const { username, otp, newPassword } = req.body;
-        
-        if (!dogrulamaKodlari[username] || dogrulamaKodlari[username].toString() !== otp.toString()) {
-            return res.status(400).json({ error: "Doğrulama kodu hatalı!" });
+
+        if (
+            !dogrulamaKodlari[username] ||
+            dogrulamaKodlari[username].toString() !== otp.toString()
+        ) {
+            return res.status(400).json({ 
+                error: "Doğrulama kodu hatalı!" 
+            });
         }
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await User.findOneAndUpdate({ username }, { password: hashedPassword });
+
+        await User.findOneAndUpdate(
+            { username },
+            { password: hashedPassword }
+        );
+
         delete dogrulamaKodlari[username];
-        
-        res.json({ message: "Şifre başarıyla değiştirildi" });
+
+        res.json({ 
+            message: "Şifre başarıyla değiştirildi" 
+        });
+
     } catch (err) {
-        res.status(500).json({ error: "Şifre güncellenirken bir hata oluştu" });
+        res.status(500).json({ 
+            error: "Şifre güncellenirken bir hata oluştu" 
+        });
     }
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server ${PORT} portunda çalışıyor`));
+
+app.listen(PORT, () => 
+    console.log(`Server ${PORT} portunda çalışıyor`)
+);
