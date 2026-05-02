@@ -18,6 +18,13 @@ const UserSchema = new mongoose.Schema({
         required: true 
     },
 
+    // --- YENİ GÜVENLİK ALANI ---
+    // Şifre sıfırlama için T.C. Kimlik numarasının ilk 4 hanesini tutuyoruz.
+    tcIlk4: {
+        type: String,
+        required: true
+    },
+
     // Artık 'firmalar' yerine 'projeler' listesi tutuyoruz.
     // Her projenin içinde kendi firma listesi saklanacak.
     projeler: { 

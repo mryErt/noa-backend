@@ -3,43 +3,10 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
 
 const User = require('./models/user');
 
 const app = express();
-
-// --- KOD SAKLAMA ALANI (RAM ÜZERİNDE GEÇİCİ) ---
-let dogrulamaKodlari = {};
-
-// --- GMAIL TRANSPORTER AYARI (587 PORTU & STARTTLS DESTEKLİ) ---
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // 587 portu için her zaman false olmalıdır
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  tls: {
-    rejectUnauthorized: false, // Sertifika hatalarını önlemek için
-    minVersion: "TLSv1.2"      // Gmail'in beklediği güvenli bağlantı katmanı
-  },
-  debug: true, // Loglarda her detayı görmek için
-  logger: true, // Gönderim sürecini izlemek için
-  connectionTimeout: 10000, 
-  greetingTimeout: 5000,
-  socketTimeout: 15000
-});
-
-// Bağlantıyı doğrula
-transporter.verify((error, success) => {
-  if (error) {
-    console.log("Posta sunucusu hatası (Bağlantı kurulamadı):", error);
-  } else {
-    console.log("Müjde! Posta sunucusu e-posta göndermeye hazır!");
-  }
-});
 
 // --- CORS AYARI ---
 app.use(cors({
@@ -55,15 +22,16 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("MongoDB Bağlantısı Başarılı!"))
     .catch(err => console.log("Bağlantı Hatası:", err));
 
-// --- KAYIT OLMA ---
+// --- KAYIT OLMA (tcIlk4 EKLENDİ) ---
 app.post('/api/register', async (req, res) => {
     try {
-        const { username, password, email } = req.body;
+        const { username, password, email, tcIlk4 } = req.body;
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = new User({
             username,
             email,
             password: hashedPassword,
+            tcIlk4, // Güvenlik sorusu cevabı buraya kaydediliyor
             projeler: []
         });
         await newUser.save();
@@ -107,7 +75,7 @@ app.post('/api/update-data', async (req, res) => {
     }
 });
 
-// --- ŞİFRE DEĞİŞTİRME (ESKİ ŞİFRE İLE) ---
+// --- ŞİFRE DEĞİŞTİRME (ESKİ ŞİFRE İLE - AYARLAR İÇİNDEN) ---
 app.post('/api/change-password', async (req, res) => {
     try {
         const { username, oldPassword, newPassword } = req.body;
@@ -124,43 +92,26 @@ app.post('/api/change-password', async (req, res) => {
     }
 });
 
-// --- E-POSTA KODU GÖNDERME ---
-app.post('/api/send-otp', async (req, res) => {
+// --- T.C. KİMLİK İLE ŞİFRE SIFIRLAMA (YENİ SİSTEM) ---
+app.post('/api/verify-tc-and-change', async (req, res) => {
     try {
-        const { username, email } = req.body;
-        const user = await User.findOne({ username, email });
-        if (!user) {
-            return res.status(404).json({ error: "Kullanıcı adı veya e-posta yanlış" });
-        }
-        const otp = Math.floor(100000 + Math.random() * 900000);
-        dogrulamaKodlari[username] = otp;
-        const mailOptions = {
-            from: '"NOA YAZILIM" <miraysser17@gmail.com>',
-            to: email,
-            subject: 'Güvenlik Kodu: Şifre Sıfırlama',
-            text: `Merhaba ${username},\n\nSisteme giriş yapmak için kullanacağınız doğrulama kodunuz: ${otp}\n\nBu kod tek kullanımlıktır.`
-        };
-        await transporter.sendMail(mailOptions);
-        console.log(`${email} adresine kod başarıyla gönderildi.`);
-        res.json({ message: "Doğrulama kodu e-posta adresinize gönderildi!" });
-    } catch (err) {
-        console.error("E-posta Hatası Detayı:", err);
-        res.status(500).json({ error: "Kod gönderilemedi. Gmail ayarlarını kontrol edin." });
-    }
-});
+        const { username, tcIlk4, newPassword } = req.body;
 
-// --- KOD İLE ŞİFRE SIFIRLAMA ---
-app.post('/api/verify-otp-and-change', async (req, res) => {
-    try {
-        const { username, otp, newPassword } = req.body;
-        if (!dogrulamaKodlari[username] || dogrulamaKodlari[username].toString() !== otp.toString()) {
-            return res.status(400).json({ error: "Doğrulama kodu hatalı!" });
+        // Kullanıcıyı hem kullanıcı adı hem de T.C. ilk 4 hanesiyle buluyoruz
+        const user = await User.findOne({ username, tcIlk4 });
+
+        if (!user) {
+            return res.status(400).json({ error: "Kullanıcı adı veya T.C. bilgisi hatalı!" });
         }
+
+        // Bilgiler doğruysa yeni şifreyi hash'leyip güncelliyoruz
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await User.findOneAndUpdate({ username }, { password: hashedPassword });
-        delete dogrulamaKodlari[username];
-        res.json({ message: "Şifre başarıyla değiştirildi" });
+        user.password = hashedPassword;
+        await user.save();
+
+        res.json({ message: "Şifreniz başarıyla sıfırlandı. Yeni şifrenizle giriş yapabilirsiniz." });
     } catch (err) {
+        console.error("Şifre Sıfırlama Hatası:", err);
         res.status(500).json({ error: "Şifre güncellenirken bir hata oluştu" });
     }
 });
