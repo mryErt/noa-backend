@@ -22,23 +22,35 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("MongoDB Bağlantısı Başarılı!"))
     .catch(err => console.log("Bağlantı Hatası:", err));
 
-// --- KAYIT OLMA (tcIlk4 EKLENDİ) ---
+// --- KAYIT OLMA (E-POSTA ZORUNLULUĞU KALDIRILDI) ---
 app.post('/api/register', async (req, res) => {
     try {
-        const { username, password, email, tcIlk4 } = req.body;
+        const { username, password, tcIlk4 } = req.body;
+
+        // Temel alanların kontrolü
+        if (!username || !password || !tcIlk4) {
+            return res.status(400).json({ error: "Kullanıcı adı, şifre ve T.C. ilk 4 hane zorunludur!" });
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
+        
         const newUser = new User({
             username,
-            email,
             password: hashedPassword,
-            tcIlk4, // Güvenlik sorusu cevabı buraya kaydediliyor
+            tcIlk4,
+            email: "", // Artık boş gönderiyoruz, çakışma yaratmıyor
             projeler: []
         });
+
         await newUser.save();
-        res.status(201).json({ message: "Kullanıcı oluşturuldu" });
+        res.status(201).json({ message: "Kullanıcı başarıyla oluşturuldu" });
     } catch (err) {
         console.error("Kayıt Hatası:", err);
-        res.status(500).json({ error: "Kullanıcı zaten var veya sunucu hatası!" });
+        // MongoDB benzersizlik hatası (Duplicate Key) kontrolü
+        if (err.code === 11000) {
+            return res.status(400).json({ error: "Bu kullanıcı adı zaten alınmış!" });
+        }
+        res.status(500).json({ error: "Sunucu hatası oluştu: " + err.message });
     }
 });
 
@@ -48,12 +60,13 @@ app.post('/api/login', async (req, res) => {
         const { username, password } = req.body;
         const user = await User.findOne({ username });
         if (!user) return res.status(400).json({ error: "Kullanıcı bulunamadı" });
+        
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ error: "Şifre hatalı" });
+        
         res.json({
             user: {
                 username: user.username,
-                email: user.email,
                 projeler: user.projeler || []
             }
         });
@@ -75,14 +88,16 @@ app.post('/api/update-data', async (req, res) => {
     }
 });
 
-// --- ŞİFRE DEĞİŞTİRME (ESKİ ŞİFRE İLE - AYARLAR İÇİNDEN) ---
+// --- ŞİFRE DEĞİŞTİRME (AYARLAR İÇİNDEN) ---
 app.post('/api/change-password', async (req, res) => {
     try {
         const { username, oldPassword, newPassword } = req.body;
         const user = await User.findOne({ username });
         if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+        
         const isMatch = await bcrypt.compare(oldPassword, user.password);
         if (!isMatch) return res.status(400).json({ error: "Mevcut şifreniz hatalı" });
+        
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         user.password = hashedPassword;
         await user.save();
@@ -92,19 +107,17 @@ app.post('/api/change-password', async (req, res) => {
     }
 });
 
-// --- T.C. KİMLİK İLE ŞİFRE SIFIRLAMA (YENİ SİSTEM) ---
+// --- T.C. KİMLİK İLE ŞİFRE SIFIRLAMA ---
 app.post('/api/verify-tc-and-change', async (req, res) => {
     try {
         const { username, tcIlk4, newPassword } = req.body;
 
-        // Kullanıcıyı hem kullanıcı adı hem de T.C. ilk 4 hanesiyle buluyoruz
         const user = await User.findOne({ username, tcIlk4 });
 
         if (!user) {
             return res.status(400).json({ error: "Kullanıcı adı veya T.C. bilgisi hatalı!" });
         }
 
-        // Bilgiler doğruysa yeni şifreyi hash'leyip güncelliyoruz
         const hashedPassword = await bcrypt.hash(newPassword, 10);
         user.password = hashedPassword;
         await user.save();

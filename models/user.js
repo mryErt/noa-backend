@@ -7,10 +7,11 @@ const UserSchema = new mongoose.Schema({
         unique: true 
     },
 
+    // Email alanını isteğe bağlı (optional) hale getirdik.
+    // Böylece 'Kullanıcı zaten var' hatasının önüne geçiyoruz.
     email: {
         type: String,
-        required: true,
-        unique: true
+        default: ""
     },
 
     password: { 
@@ -18,15 +19,13 @@ const UserSchema = new mongoose.Schema({
         required: true 
     },
 
-    // --- YENİ GÜVENLİK ALANI ---
     // Şifre sıfırlama için T.C. Kimlik numarasının ilk 4 hanesini tutuyoruz.
     tcIlk4: {
         type: String,
         required: true
     },
 
-    // Artık 'firmalar' yerine 'projeler' listesi tutuyoruz.
-    // Her projenin içinde kendi firma listesi saklanacak.
+    // Projeler listesi
     projeler: { 
         type: Array, 
         default: [] 
