@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const bcrypt = require('bcryptjs'); 
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 
@@ -10,20 +10,22 @@ const User = require('./models/user');
 const app = express();
 
 // --- KOD SAKLAMA ALANI (RAM ÜZERİNDE GEÇİCİ) ---
-let dogrulamaKodlari = {}; 
+let dogrulamaKodlari = {};
 
-// --- GMAIL TRANSPORTER AYARI (SÜPER AYARLANMIŞ VERSİYON) ---
+// --- GMAIL TRANSPORTER AYARI (IPv4 ZORLAMALI & SÜPER AYARLANMIŞ) ---
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
+  // smtp.gmail.com yerine doğrudan Google IPv4 adresi kullanıyoruz
+  host: '74.125.195.108', 
   port: 465,
-  secure: true, // 465 portu için true olmalı
+  secure: true,
   auth: {
-    user: 'miraysser17@gmail.com', // Gönderici mail adresin
-    pass: 'stlp kghp wath aldw'    // Google'dan aldığın 16 haneli kod
+    // Çevre değişkenlerinden çekiyoruz
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   },
   tls: {
-    rejectUnauthorized: false, // Sertifika hatalarını ve Render engellerini aşar
-    servername: "smtp.gmail.com"
+    rejectUnauthorized: false, // Sunucu sertifika hatalarını önlemek için kritik
+    servername: 'smtp.gmail.com' // IP kullandığımız için bu şart
   },
   debug: true, // Hata olursa loglarda detaylı görebilmemiz için
   logger: true, // Adım adım gönderim sürecini izlemek için
@@ -43,7 +45,7 @@ transporter.verify((error, success) => {
 
 // --- CORS AYARI ---
 app.use(cors({
-  origin: true, 
+  origin: true,
   methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true
 }));
@@ -62,7 +64,7 @@ app.post('/api/register', async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const newUser = new User({ 
+        const newUser = new User({
             username,
             email,
             password: hashedPassword,
@@ -70,7 +72,6 @@ app.post('/api/register', async (req, res) => {
         });
 
         await newUser.save();
-
         res.status(201).json({ message: "Kullanıcı oluşturuldu" });
 
     } catch (err) {
@@ -91,12 +92,12 @@ app.post('/api/login', async (req, res) => {
 
         if (!isMatch) return res.status(400).json({ error: "Şifre hatalı" });
 
-        res.json({ 
-            user: { 
-                username: user.username, 
+        res.json({
+            user: {
+                username: user.username,
                 email: user.email,
-                projeler: user.projeler || [] 
-            } 
+                projeler: user.projeler || []
+            }
         });
 
     } catch (err) {
@@ -124,7 +125,7 @@ app.post('/api/change-password', async (req, res) => {
     try {
         const { username, oldPassword, newPassword } = req.body;
         const user = await User.findOne({ username });
-        
+       
         if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
 
         const isMatch = await bcrypt.compare(oldPassword, user.password);
@@ -135,7 +136,6 @@ app.post('/api/change-password', async (req, res) => {
         user.password = hashedPassword;
 
         await user.save();
-
         res.json({ message: "Şifre başarıyla güncellendi" });
 
     } catch (err) {
@@ -152,13 +152,12 @@ app.post('/api/send-otp', async (req, res) => {
         const user = await User.findOne({ username, email });
 
         if (!user) {
-            return res.status(404).json({ 
-                error: "Kullanıcı adı veya e-posta yanlış" 
+            return res.status(404).json({
+                error: "Kullanıcı adı veya e-posta yanlış"
             });
         }
 
         const otp = Math.floor(100000 + Math.random() * 900000);
-
         dogrulamaKodlari[username] = otp;
 
         const mailOptions = {
@@ -169,17 +168,16 @@ app.post('/api/send-otp', async (req, res) => {
         };
 
         await transporter.sendMail(mailOptions);
-
         console.log(`${email} adresine kod başarıyla gönderildi.`);
 
-        res.json({ 
-            message: "Doğrulama kodu e-posta adresinize gönderildi!" 
+        res.json({
+            message: "Doğrulama kodu e-posta adresinize gönderildi!"
         });
 
     } catch (err) {
         console.error("E-posta Hatası Detayı:", err);
-        res.status(500).json({ 
-            error: "Kod gönderilemedi. Gmail ayarlarını veya uygulama şifresini kontrol edin." 
+        res.status(500).json({
+            error: "Kod gönderilemedi. Gmail ayarlarını veya uygulama şifresini kontrol edin."
         });
     }
 });
@@ -193,8 +191,8 @@ app.post('/api/verify-otp-and-change', async (req, res) => {
             !dogrulamaKodlari[username] ||
             dogrulamaKodlari[username].toString() !== otp.toString()
         ) {
-            return res.status(400).json({ 
-                error: "Doğrulama kodu hatalı!" 
+            return res.status(400).json({
+                error: "Doğrulama kodu hatalı!"
             });
         }
 
@@ -206,20 +204,19 @@ app.post('/api/verify-otp-and-change', async (req, res) => {
         );
 
         delete dogrulamaKodlari[username];
-
-        res.json({ 
-            message: "Şifre başarıyla değiştirildi" 
+        res.json({
+            message: "Şifre başarıyla değiştirildi"
         });
 
     } catch (err) {
-        res.status(500).json({ 
-            error: "Şifre güncellenirken bir hata oluştu" 
+        res.status(500).json({
+            error: "Şifre güncellenirken bir hata oluştu"
         });
     }
 });
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => 
+app.listen(PORT, () =>
     console.log(`Server ${PORT} portunda çalışıyor`)
 );
